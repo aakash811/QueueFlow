@@ -13,6 +13,7 @@ type Config struct {
 	RedisURL      string
 	KafkaBrokers  string
 	LogLevel      string
+	WorkerConcurrency int
 }
 
 var AppConfig Config
@@ -36,5 +37,6 @@ func LoadConfig() {
 		RedisURL:     viper.GetString("REDIS_URL"),
 		KafkaBrokers: viper.GetString("KAFKA_BROKERS"),
 		LogLevel:     viper.GetString("LOG_LEVEL"),
+		WorkerConcurrency: viper.GetInt("WORKER_CONCURRENCY"),
 	}
 }
