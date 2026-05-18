@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/aakash811/queueflow/shared/config"
+	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/aakash811/queueflow/worker-service/models"
 	"github.com/aakash811/queueflow/worker-service/processor"
 	kafkago "github.com/segmentio/kafka-go"
@@ -16,7 +18,7 @@ func worker(workerID int, jobs <-chan models.Job) {
 
 	for job := range jobs {
 		fmt.Printf(
-			"worker %d processing jobs %s\n",
+			"worker %d processing job %s\n",
 			workerID,
 			job.ID,
 		)
@@ -25,6 +27,31 @@ func worker(workerID int, jobs <-chan models.Job) {
 
 		if err != nil {
 			fmt.Println("processing error:", err)
+
+			job.RetryCount++
+
+			if job.RetryCount <= job.MaxRetries {
+				fmt.Printf(
+					"retrying job %s attempt %d\n",
+					job.ID,
+					job.RetryCount,
+				)
+
+				backoff := time.Duration(
+					1 << job.RetryCount,
+				) * time.Second
+
+				time.Sleep(backoff)
+
+				err = kafka.PublishRetryJobs(job)
+
+				if err != nil {
+					fmt.Println("retry publish error:", err)
+				}
+
+				continue
+			}
+			fmt.Println("max retries exceeded:", job.ID)
 		}
 	}
 }
@@ -45,6 +72,8 @@ func StartConsumer() {
 	for i := 1; i <= workerCount; i++ {
 		go worker(i, jobChannel)
 	}
+
+	go StartRetryConsumer(jobChannel)
 
 	for {
 		message, err := reader.ReadMessage(context.Background())

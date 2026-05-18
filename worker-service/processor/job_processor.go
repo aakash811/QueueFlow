@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,13 @@ func ProcessJob(job models.Job) error {
 	fmt.Println("Processing job:", job.ID)
 
 	time.Sleep(2 * time.Second)
+
+	fail, ok := job.Payload["fail"].(bool)
+
+	if ok && fail{
+		fmt.Println("Job Failed:", job.ID)
+		return errors.New("simulated job failure")
+	}
 
 	err := repository.UpdateJobStatus(job.ID, "completed")
 

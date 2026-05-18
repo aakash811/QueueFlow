@@ -4,6 +4,7 @@ import (
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/worker-service/consumer"
 	"github.com/aakash811/queueflow/worker-service/db"
+	"github.com/aakash811/queueflow/worker-service/kafka"
 )
 
 func main() {
@@ -14,6 +15,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	kafka.InitProducer()
 	consumer.StartConsumer()
 }
