@@ -22,8 +22,7 @@ CREATE TABLE jobs (
     failed_at TIMESTAMP
 );
 
-
-CREATE TABLE job_attempts(
+CREATE TABLE job_attempts (
     id UUID PRIMARY KEY,
 
     job_id UUID REFERENCES jobs(id) ON DELETE CASCADE,
@@ -39,7 +38,7 @@ CREATE TABLE job_attempts(
     completed_at TIMESTAMP
 );
 
-CREATE TABLE workers(
+CREATE TABLE workers (
     id UUID PRIMARY KEY,
 
     hostname VARCHAR(255),
@@ -51,7 +50,7 @@ CREATE TABLE workers(
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE dead_letter_jobs(
+CREATE TABLE dead_letter_jobs (
     id UUID PRIMARY KEY,
 
     original_job_id UUID,
