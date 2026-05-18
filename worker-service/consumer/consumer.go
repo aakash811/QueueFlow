@@ -10,6 +10,7 @@ import (
 	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/aakash811/queueflow/worker-service/models"
 	"github.com/aakash811/queueflow/worker-service/processor"
+	"github.com/aakash811/queueflow/worker-service/repository"
 	kafkago "github.com/segmentio/kafka-go"
 )
 
@@ -52,6 +53,18 @@ func worker(workerID int, jobs <-chan models.Job) {
 				continue
 			}
 			fmt.Println("max retries exceeded:", job.ID)
+
+			err = kafka.PublishDeadLetterJob(job)
+
+			if err != nil {
+				fmt.Println("dead letter publish error:", err)
+			}
+
+			err = repository.SavedDeadLetterJob(job)
+
+			if err != nil {
+				fmt.Println("dead letter save error:", err)
+			}
 		}
 	}
 }
