@@ -42,5 +42,20 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  job-service:
+    build:
+      context: .
+      dockerfile: job-service/Dockerfile
+    container_name: queueflow-job-service
+    restart: always
+    depends_on:
+      - postgres
+      - kafka
+      - redis
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+
 volumes:
   postgres_data:
