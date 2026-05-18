@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/aakash811/queueflow/shared/config"
@@ -14,7 +15,11 @@ import (
 	kafkago "github.com/segmentio/kafka-go"
 )
 
-func worker(workerID int, jobs <-chan models.Job) {
+func worker(
+	workerID int,
+	jobs <-chan models.Job, 
+	wg *sync.WaitGroup,
+) {
 	fmt.Println("worker started:", workerID)
 
 	for job := range jobs {
@@ -24,6 +29,7 @@ func worker(workerID int, jobs <-chan models.Job) {
 			job.ID,
 		)
 
+		wg.Add(1)
 		err := processor.ProcessJob(job)
 
 		if err != nil {
@@ -66,10 +72,12 @@ func worker(workerID int, jobs <-chan models.Job) {
 				fmt.Println("dead letter save error:", err)
 			}
 		}
+
+		wg.Done()
 	}
 }
 
-func StartConsumer() {
+func StartConsumer(ctx context.Context) {
 	reader := kafkago.NewReader(kafkago.ReaderConfig{
 		Brokers: []string{"kafka:9092"},
 		Topic:   "jobs_pending",
@@ -77,18 +85,36 @@ func StartConsumer() {
 	})
 
 	fmt.Println("worker consumer started")
-
+	
 	jobChannel := make(chan models.Job, 100)
+	var wg sync.WaitGroup
 
 	workerCount := config.AppConfig.WorkerConcurrency
 
 	for i := 1; i <= workerCount; i++ {
-		go worker(i, jobChannel)
+		go worker(i, jobChannel, &wg)
 	}
 
 	go StartRetryConsumer(jobChannel)
 
 	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("shutdown signal received, shutting down consumer...")
+			close(jobChannel)
+
+			wg.Wait()
+			err := reader.Close()
+
+			if err != nil {
+				fmt.Println("Reader close error:", err)
+			}
+
+			fmt.Println("worker shutdown complete")
+
+			return
+		default:
+		}
 		message, err := reader.ReadMessage(context.Background())
 
 		if err != nil {
