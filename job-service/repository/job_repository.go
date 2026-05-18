@@ -6,7 +6,6 @@ import (
 
 	"github.com/aakash811/queueflow/job-service/db"
 	"github.com/aakash811/queueflow/job-service/models"
-	"github.com/google/uuid"
 )
 
 func CreateJob(job models.Job) error {
@@ -25,7 +24,7 @@ func CreateJob(job models.Job) error {
 	_, err := db.DB.Exec(
 		context.Background(),
 		query,
-		uuid.New(),
+		job.ID,
 		job.QueueName,
 		job.Payload,
 		job.Status,

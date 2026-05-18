@@ -1,13 +1,10 @@
-```bash id="jlwm105"
-#!/bin/bash
-
 topics=(
-  jobs.pending
-  jobs.processing
-  jobs.completed
-  jobs.failed
-  jobs.retry
-  jobs.deadletter
+  jobs_pending
+  jobs_processing
+  jobs_completed
+  jobs_failed
+  jobs_retry
+  jobs_deadletter
 )
 
 for topic in "${topics[@]}"
@@ -19,4 +16,3 @@ do
     --partitions 1 \
     --replication-factor 1
 done
-```
