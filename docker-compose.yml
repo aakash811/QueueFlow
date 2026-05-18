@@ -57,5 +57,17 @@ services:
     env_file:
       - .env
 
+  worker-service:
+    build:
+      context: .
+      dockerfile: worker-service/Dockerfile
+    container_name: queueflow-worker-service
+    restart: always
+    depends_on:
+      - postgres
+      - kafka
+    env_file:
+      - .env
+
 volumes:
   postgres_data:
