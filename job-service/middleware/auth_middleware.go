@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"github.com/aakash811/queueflow/shared/config"
-
 	"github.com/gin-gonic/gin"
-
 	"github.com/golang-jwt/jwt/v5"
 )
 

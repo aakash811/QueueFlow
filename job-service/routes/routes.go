@@ -14,6 +14,7 @@ func RegisterRoutes(router *gin.Engine) {
 
 	authorized.Use(
 		middleware.AuthMiddleware(),
+		middleware.RateLimitMiddleware(),
 	)
 
 	authorized.POST(

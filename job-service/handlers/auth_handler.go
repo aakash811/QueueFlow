@@ -39,7 +39,7 @@ func LoginHandler(c *gin.Context) {
 
 	token, err := auth.GenerateToken(
 		req.Username,
-		"USER",
+		"ADMIN",
 	)
 
 	if err != nil {
