@@ -69,5 +69,16 @@ services:
     env_file:
       - .env
 
+  scheduler-service:
+    build:
+      context: .
+      dockerfile: scheduler-service/Dockerfile
+    container_name: queueflow-scheduler-service
+    depends_on:
+      - postgres
+      - kafka
+    env_file:
+      - .env
+
 volumes:
   postgres_data:
