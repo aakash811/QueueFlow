@@ -9,50 +9,86 @@ import (
 	"time"
 
 	"github.com/aakash811/queueflow/shared/config"
+	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/aakash811/queueflow/worker-service/models"
 	"github.com/aakash811/queueflow/worker-service/processor"
 	"github.com/aakash811/queueflow/worker-service/repository"
 	kafkago "github.com/segmentio/kafka-go"
+	"github.com/sony/gobreaker"
 )
 
 func worker(
 	workerID int,
-	jobs <-chan models.Job, 
+	jobs <-chan models.Job,
 	wg *sync.WaitGroup,
 ) {
+
 	fmt.Println("worker started:", workerID)
 
 	for job := range jobs {
+
+		wg.Add(1)
+
 		fmt.Printf(
 			"worker %d processing job %s\n",
 			workerID,
 			job.ID,
 		)
 
-		wg.Add(1)
-		fmt.Println("job timeout seconds:", config.AppConfig.JobTimeoutSeconds)
+		fmt.Println(
+			"job timeout seconds:",
+			config.AppConfig.JobTimeoutSeconds,
+		)
+
 		timeoutCtx, cancel := context.WithTimeout(
 			context.Background(),
 			time.Duration(
 				config.AppConfig.JobTimeoutSeconds,
-			) * time.Second,
+			)*time.Second,
 		)
 
-		defer cancel()
+		_, err := circuitbreaker.JobBreaker.Execute(
+			func() (interface{}, error) {
 
-		err := processor.ProcessJob(timeoutCtx, job)
+				return nil,
+					processor.ProcessJob(
+						timeoutCtx,
+						job,
+					)
+			},
+		)
+
+		cancel()
+
+		if err == gobreaker.ErrOpenState {
+
+			fmt.Println(
+				"circuit breaker open, rejecting job:",
+				job.ID,
+			)
+
+			wg.Done()
+
+			continue
+		}
 
 		if errors.Is(err, context.DeadlineExceeded) {
-			fmt.Println("job timeout exceeded:", job.ID)
+
+			fmt.Println(
+				"job timeout exceeded:",
+				job.ID,
+			)
 		}
 
 		if err != nil {
+
 			fmt.Println("processing error:", err)
 
 			job.RetryCount++
 
 			if job.RetryCount <= job.MaxRetries {
+
 				fmt.Printf(
 					"retrying job %s attempt %d\n",
 					job.ID,
@@ -60,7 +96,7 @@ func worker(
 				)
 
 				backoff := time.Duration(
-					1 << job.RetryCount,
+					1<<job.RetryCount,
 				) * time.Second
 
 				time.Sleep(backoff)
@@ -68,29 +104,48 @@ func worker(
 				err = kafka.PublishRetryJobs(job)
 
 				if err != nil {
-					fmt.Println("retry publish error:", err)
+
+					fmt.Println(
+						"retry publish error:",
+						err,
+					)
 				}
+
+				wg.Done()
 
 				continue
 			}
-			fmt.Println("max retries exceeded:", job.ID)
+
+			fmt.Println(
+				"max retries exceeded:",
+				job.ID,
+			)
 
 			err = kafka.PublishDeadLetterJob(job)
 
 			if err != nil {
-				fmt.Println("dead letter publish error:", err)
+
+				fmt.Println(
+					"dead letter publish error:",
+					err,
+				)
 			}
 
 			err = repository.SavedDeadLetterJob(job)
 
 			if err != nil {
-				fmt.Println("dead letter save error:", err)
+
+				fmt.Println(
+					"dead letter save error:",
+					err,
+				)
 			}
 		}
 
 		wg.Done()
 	}
 }
+
 
 func StartConsumer(ctx context.Context) {
 	reader := kafkago.NewReader(kafkago.ReaderConfig{

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/aakash811/queueflow/shared/config"
+	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/consumer"
 	"github.com/aakash811/queueflow/worker-service/db"
 	"github.com/aakash811/queueflow/worker-service/kafka"
@@ -40,5 +41,6 @@ func main() {
 		cancel()
 	}()
 
+	circuitbreaker.InitCircuitBreaker()
 	consumer.StartConsumer(ctx)
 }
