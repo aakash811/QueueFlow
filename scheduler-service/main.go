@@ -5,6 +5,7 @@ import (
 
 	"github.com/aakash811/queueflow/shared/config"
 
+	cronjobs "github.com/aakash811/queueflow/scheduler-service/cron"
 	"github.com/aakash811/queueflow/scheduler-service/db"
 	"github.com/aakash811/queueflow/scheduler-service/kafka"
 	"github.com/aakash811/queueflow/scheduler-service/scheduler"
@@ -26,5 +27,6 @@ func main() {
 
 	fmt.Println("scheduler initialized")
 
+	go cronjobs.StartCronJobs()
 	scheduler.StartScheduler()
 }
