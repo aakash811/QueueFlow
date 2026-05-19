@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -9,10 +10,20 @@ import (
 	"github.com/aakash811/queueflow/worker-service/repository"
 )
 
-func ProcessJob(job models.Job) error {
+func ProcessJob(ctx context.Context, job models.Job) error {
 	fmt.Println("Processing job:", job.ID)
 
-	time.Sleep(2 * time.Second)
+	duration := 5
+	if value, ok := job.Payload["duration"].(float64); ok {
+		duration = int(value)
+	}
+	fmt.Println("job duration:", duration)
+	select {
+	case <-time.After(time.Duration(duration) * time.Second):
+	case <-ctx.Done():
+		fmt.Println("job cancelled:", job.ID)
+		return ctx.Err()
+	}
 
 	fail, ok := job.Payload["fail"].(bool)
 

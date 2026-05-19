@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -30,7 +31,21 @@ func worker(
 		)
 
 		wg.Add(1)
-		err := processor.ProcessJob(job)
+		fmt.Println("job timeout seconds:", config.AppConfig.JobTimeoutSeconds)
+		timeoutCtx, cancel := context.WithTimeout(
+			context.Background(),
+			time.Duration(
+				config.AppConfig.JobTimeoutSeconds,
+			) * time.Second,
+		)
+
+		defer cancel()
+
+		err := processor.ProcessJob(timeoutCtx, job)
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Println("job timeout exceeded:", job.ID)
+		}
 
 		if err != nil {
 			fmt.Println("processing error:", err)

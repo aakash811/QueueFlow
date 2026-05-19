@@ -14,6 +14,7 @@ type Config struct {
 	KafkaBrokers  string
 	LogLevel      string
 	WorkerConcurrency int
+	JobTimeoutSeconds int
 }
 
 var AppConfig Config
@@ -38,5 +39,6 @@ func LoadConfig() {
 		KafkaBrokers: viper.GetString("KAFKA_BROKERS"),
 		LogLevel:     viper.GetString("LOG_LEVEL"),
 		WorkerConcurrency: viper.GetInt("WORKER_CONCURRENCY"),
+		JobTimeoutSeconds: viper.GetInt("JOB_TIMEOUT_SECONDS"),
 	}
 }
