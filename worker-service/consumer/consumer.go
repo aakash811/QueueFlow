@@ -10,6 +10,7 @@ import (
 
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/shared/logger"
+	"github.com/aakash811/queueflow/shared/metrics"
 	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/aakash811/queueflow/worker-service/models"
@@ -32,124 +33,170 @@ func worker(
 
 		wg.Add(1)
 
-		logger.Log.Info(
-			"worker processing job",
+		start := time.Now()
 
-			zap.Int("worker_id", workerID),
-			zap.String("job_id", job.ID),
-		)
+		func() {
 
-
-		logger.Log.Info(
-			"job timeout seconds",
-			zap.Int("timeout_seconds", config.AppConfig.JobTimeoutSeconds),
-		)
-
-		timeoutCtx, cancel := context.WithTimeout(
-			context.Background(),
-			time.Duration(
-				config.AppConfig.JobTimeoutSeconds,
-			)*time.Second,
-		)
-
-		_, err := circuitbreaker.JobBreaker.Execute(
-			func() (interface{}, error) {
-
-				return nil,
-					processor.ProcessJob(
-						timeoutCtx,
-						job,
-					)
-			},
-		)
-
-		cancel()
-
-		if err == gobreaker.ErrOpenState {
+			defer wg.Done()
 
 			logger.Log.Info(
-				"circuit breaker open, rejecting job",
+				"worker processing job",
+
+				zap.Int("worker_id", workerID),
 				zap.String("job_id", job.ID),
 			)
 
-			wg.Done()
+			logger.Log.Info(
+				"job timeout configured",
 
-			continue
-		}
-
-		if errors.Is(err, context.DeadlineExceeded) {
-
-			fmt.Println(
-				"job timeout exceeded:",
-				job.ID,
+				zap.Int(
+					"timeout_seconds",
+					config.AppConfig.JobTimeoutSeconds,
+				),
 			)
-		}
 
-		if err != nil {
+			timeoutCtx, cancel := context.WithTimeout(
+				context.Background(),
+				time.Duration(
+					config.AppConfig.JobTimeoutSeconds,
+				)*time.Second,
+			)
 
-			fmt.Println("processing error:", err)
+			defer cancel()
 
-			job.RetryCount++
+			_, err := circuitbreaker.JobBreaker.Execute(
+				func() (interface{}, error) {
 
-			if job.RetryCount <= job.MaxRetries {
+					return nil,
+						processor.ProcessJob(
+							timeoutCtx,
+							job,
+						)
+				},
+			)
 
-				logger.Log.Warn(
-					"retrying job",
+			metrics.JobLatency.Observe(
+				time.Since(start).Seconds(),
+			)
+
+			if err == gobreaker.ErrOpenState {
+
+				logger.Log.Error(
+					"circuit breaker open",
 
 					zap.String("job_id", job.ID),
-					zap.Int("retry_count", job.RetryCount),
 				)
 
-				backoff := time.Duration(
-					1<<job.RetryCount,
-				) * time.Second
+				metrics.WorkerFailures.Inc()
 
-				time.Sleep(backoff)
+				return
+			}
 
-				err = kafka.PublishRetryJobs(job)
+			if errors.Is(err, context.DeadlineExceeded) {
+
+				logger.Log.Warn(
+					"job timeout exceeded",
+
+					zap.String("job_id", job.ID),
+				)
+
+				metrics.WorkerFailures.Inc()
+			}
+
+			if err != nil {
+
+				logger.Log.Error(
+					"job processing failed",
+
+					zap.String("job_id", job.ID),
+					zap.Error(err),
+				)
+
+				metrics.WorkerFailures.Inc()
+
+				job.RetryCount++
+
+				if job.RetryCount <= job.MaxRetries {
+
+					logger.Log.Warn(
+						"retrying job",
+
+						zap.String("job_id", job.ID),
+						zap.Int(
+							"retry_count",
+							job.RetryCount,
+						),
+					)
+
+					metrics.RetryCount.Inc()
+
+					backoff := time.Duration(
+						1<<job.RetryCount,
+					) * time.Second
+
+					time.Sleep(backoff)
+
+					err = kafka.PublishRetryJobs(job)
+
+					if err != nil {
+
+						logger.Log.Error(
+							"retry publish failed",
+
+							zap.String("job_id", job.ID),
+							zap.Error(err),
+						)
+					}
+
+					return
+				}
+
+				logger.Log.Error(
+					"max retries exceeded",
+
+					zap.String("job_id", job.ID),
+				)
+
+				err = kafka.PublishDeadLetterJob(job)
 
 				if err != nil {
 
-					fmt.Println(
-						"retry publish error:",
-						err,
+					logger.Log.Error(
+						"dead letter publish failed",
+
+						zap.String("job_id", job.ID),
+						zap.Error(err),
 					)
 				}
 
-				wg.Done()
+				err = repository.SavedDeadLetterJob(job)
 
-				continue
+				if err != nil {
+
+					logger.Log.Error(
+						"dead letter save failed",
+
+						zap.String("job_id", job.ID),
+						zap.Error(err),
+					)
+				}
+
+				return
 			}
 
-			fmt.Println(
-				"max retries exceeded:",
-				job.ID,
+			logger.Log.Info(
+				"job completed",
+
+				zap.String("job_id", job.ID),
 			)
 
-			err = kafka.PublishDeadLetterJob(job)
+			metrics.JobThroughput.Inc()
 
-			if err != nil {
-
-				fmt.Println(
-					"dead letter publish error:",
-					err,
-				)
-			}
-
-			err = repository.SavedDeadLetterJob(job)
-
-			if err != nil {
-
-				fmt.Println(
-					"dead letter save error:",
-					err,
-				)
-			}
-		}
-
-		wg.Done()
+			metrics.QueueDepth.Dec()
+		}()
 	}
 }
+
 
 
 func StartConsumer(ctx context.Context) {

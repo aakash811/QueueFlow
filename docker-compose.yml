@@ -66,6 +66,8 @@ services:
     depends_on:
       - postgres
       - kafka
+    ports:
+      - "2112:2112"
     env_file:
       - .env
 
@@ -80,5 +82,13 @@ services:
     env_file:
       - .env
 
+  prometheus:
+    image: prom/prometheus
+    container_name: queueflow-prometheus
+
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
 volumes:
   postgres_data:

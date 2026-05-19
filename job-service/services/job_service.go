@@ -7,6 +7,7 @@ import (
 	"github.com/aakash811/queueflow/job-service/models"
 	"github.com/aakash811/queueflow/job-service/repository"
 	"github.com/aakash811/queueflow/shared/logger"
+	"github.com/aakash811/queueflow/shared/metrics"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -40,10 +41,11 @@ func CreateJob(job models.Job) error {
 	)
 	
 	err = kafka.PublishJob(job)
-
+	
 	if err != nil {
 		return err
 	}
-
+	metrics.QueueDepth.Inc()
+	
 	return nil
 }
