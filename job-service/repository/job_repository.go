@@ -8,6 +8,24 @@ import (
 	"github.com/aakash811/queueflow/job-service/models"
 )
 
+func CountPendingJobs() (int, error) {
+	query := `
+	SELECT COUNT(*)
+	FROM jobs
+	WHERE status = 'pending'
+	`
+
+	var count int
+	
+	err := db.DB.QueryRow(
+		context.Background(),
+		query,
+	).Scan(&count)
+
+	return count, err
+}
+
+
 func CreateJob(job models.Job) error {
 	query := `
 	INSERT INTO jobs (

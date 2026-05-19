@@ -9,6 +9,7 @@ import (
 func RegisterRoutes(router *gin.Engine) {
 	router.POST(
 		"/jobs",
+		middleware.BackpressureMiddleware(),
 		middleware.IdempotencyMiddleware(),
 		handlers.CreateJobHandler,
 	)
