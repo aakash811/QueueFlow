@@ -5,6 +5,7 @@ import (
 
 	"github.com/aakash811/queueflow/job-service/db"
 	"github.com/aakash811/queueflow/job-service/kafka"
+	"github.com/aakash811/queueflow/job-service/redis"
 	"github.com/aakash811/queueflow/job-service/routes"
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/shared/logger"
@@ -23,6 +24,12 @@ func main() {
 		panic(err)
 	}
 
+	err = redis.ConnectRedis( config.AppConfig.RedisURL)
+
+	if err != nil {
+		panic(err)
+	}
+	
 	kafka.InitProducer() 
 	router := gin.Default()
 	routes.RegisterRoutes(router)
