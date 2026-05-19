@@ -7,8 +7,18 @@ import (
 )
 
 func RegisterRoutes(router *gin.Engine) {
-	router.POST(
+
+	router.POST("/login", handlers.LoginHandler)
+
+	authorized := router.Group("/")
+
+	authorized.Use(
+		middleware.AuthMiddleware(),
+	)
+
+	authorized.POST(
 		"/jobs",
+		middleware.RequireRole("ADMIN"),
 		middleware.BackpressureMiddleware(),
 		middleware.IdempotencyMiddleware(),
 		handlers.CreateJobHandler,

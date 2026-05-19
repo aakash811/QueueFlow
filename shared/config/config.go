@@ -16,6 +16,7 @@ type Config struct {
 	WorkerConcurrency int
 	JobTimeoutSeconds int
 	MaxPendingJobs int
+	JWTSecret string
 }
 
 var AppConfig Config
@@ -42,5 +43,6 @@ func LoadConfig() {
 		WorkerConcurrency: viper.GetInt("WORKER_CONCURRENCY"),
 		JobTimeoutSeconds: viper.GetInt("JOB_TIMEOUT_SECONDS"),
 		MaxPendingJobs:    viper.GetInt("MAX_PENDING_JOBS"),
+		JWTSecret:         viper.GetString("JWT_SECRET"),
 	}
 }
