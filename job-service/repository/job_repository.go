@@ -34,9 +34,10 @@ func CreateJob(job models.Job) error {
 		payload,
 		status,
 		retry_count,
-		max_retries
+		max_retries,
+		scheduled_at
 	)
-	VALUES ($1, $2, $3, $4, $5, $6)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	_, err := db.DB.Exec(
@@ -48,6 +49,7 @@ func CreateJob(job models.Job) error {
 		job.Status,
 		job.RetryCount,
 		job.MaxRetries,
+		job.ExecuteAt,
 	)
 
 	if err != nil {

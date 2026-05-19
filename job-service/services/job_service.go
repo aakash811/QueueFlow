@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+
 	"github.com/aakash811/queueflow/job-service/kafka"
 	"github.com/aakash811/queueflow/job-service/models"
 	"github.com/aakash811/queueflow/job-service/repository"
@@ -19,6 +21,16 @@ func CreateJob(job models.Job) error {
 		return err
 	}
 
+	if job.ExecuteAt != nil {
+		fmt.Println(
+			"Scheduled job stored for later execution:",
+			job.ID,
+		)
+
+		return nil
+	}
+
+	fmt.Println("Publishing immediate job:", job.ID)
 	err = kafka.PublishJob(job)
 
 	if err != nil {

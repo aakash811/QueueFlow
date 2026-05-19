@@ -13,4 +13,5 @@ type Job struct {
 	UpdatedAt   time.Time  `json:"updated_at"` 
  	ProcessedAt *time.Time `json:"processed_at"`
 	FailedAt    *time.Time `json:"failed_at"`
+	ExecuteAt   *time.Time `json:"execute_at"`
 }
