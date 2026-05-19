@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aakash811/queueflow/shared/config"
+	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/aakash811/queueflow/worker-service/models"
@@ -16,6 +17,7 @@ import (
 	"github.com/aakash811/queueflow/worker-service/repository"
 	kafkago "github.com/segmentio/kafka-go"
 	"github.com/sony/gobreaker"
+	"go.uber.org/zap"
 )
 
 func worker(
@@ -30,15 +32,17 @@ func worker(
 
 		wg.Add(1)
 
-		fmt.Printf(
-			"worker %d processing job %s\n",
-			workerID,
-			job.ID,
+		logger.Log.Info(
+			"worker processing job",
+
+			zap.Int("worker_id", workerID),
+			zap.String("job_id", job.ID),
 		)
 
-		fmt.Println(
-			"job timeout seconds:",
-			config.AppConfig.JobTimeoutSeconds,
+
+		logger.Log.Info(
+			"job timeout seconds",
+			zap.Int("timeout_seconds", config.AppConfig.JobTimeoutSeconds),
 		)
 
 		timeoutCtx, cancel := context.WithTimeout(
@@ -63,9 +67,9 @@ func worker(
 
 		if err == gobreaker.ErrOpenState {
 
-			fmt.Println(
-				"circuit breaker open, rejecting job:",
-				job.ID,
+			logger.Log.Info(
+				"circuit breaker open, rejecting job",
+				zap.String("job_id", job.ID),
 			)
 
 			wg.Done()
@@ -89,10 +93,11 @@ func worker(
 
 			if job.RetryCount <= job.MaxRetries {
 
-				fmt.Printf(
-					"retrying job %s attempt %d\n",
-					job.ID,
-					job.RetryCount,
+				logger.Log.Warn(
+					"retrying job",
+
+					zap.String("job_id", job.ID),
+					zap.Int("retry_count", job.RetryCount),
 				)
 
 				backoff := time.Duration(

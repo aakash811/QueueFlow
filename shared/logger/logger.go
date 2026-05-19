@@ -6,12 +6,14 @@ import (
 
 var Log *zap.Logger
 
-func InitLogger() {
+func InitLogger() error {
 	logger, err := zap.NewProduction()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	Log = logger
+
+	return nil
 }

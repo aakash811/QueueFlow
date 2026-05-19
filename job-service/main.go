@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/aakash811/queueflow/job-service/db"
 	"github.com/aakash811/queueflow/job-service/kafka"
 	"github.com/aakash811/queueflow/job-service/redis"
@@ -10,15 +8,20 @@ import (
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func main() {
 	config.LoadConfig()
-	logger.InitLogger()
+	err := logger.InitLogger()
+
+	if err != nil {
+		panic(err)
+	}
 
 	defer logger.Log.Sync()
 
-	err := db.ConnectDatabase(config.AppConfig.PostgresURL)
+	err = db.ConnectDatabase(config.AppConfig.PostgresURL)
 
 	if err != nil {
 		panic(err)
@@ -29,11 +32,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	kafka.InitProducer() 
 	router := gin.Default()
 	routes.RegisterRoutes(router)
-	logger.Log.Info("job-service started")
-	fmt.Println(config.AppConfig.PostgresURL)
+	logger.Log.Info(
+		"job-service started",
+
+		zap.String(
+			"port",
+			config.AppConfig.Port,
+		),
+	)
 	router.Run(":" + config.AppConfig.Port)
 }

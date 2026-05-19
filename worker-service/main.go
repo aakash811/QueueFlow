@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/aakash811/queueflow/shared/config"
+	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/consumer"
 	"github.com/aakash811/queueflow/worker-service/db"
@@ -16,8 +16,12 @@ import (
 
 func main() {
 	config.LoadConfig()
+	err := logger.InitLogger()
 
-	err := db.ConnectDatabase(config.AppConfig.PostgresURL)
+	if err != nil {
+		panic(err)
+	}
+	err = db.ConnectDatabase(config.AppConfig.PostgresURL)
 
 	if err != nil {
 		panic(err)
@@ -36,7 +40,7 @@ func main() {
 
 	go func() {
 		<-signalChannel
-		fmt.Println("shutdown initiated")
+		logger.Log.Info("shutdown initiated")
 
 		cancel()
 	}()

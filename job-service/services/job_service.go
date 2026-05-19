@@ -6,7 +6,9 @@ import (
 	"github.com/aakash811/queueflow/job-service/kafka"
 	"github.com/aakash811/queueflow/job-service/models"
 	"github.com/aakash811/queueflow/job-service/repository"
+	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 func CreateJob(job models.Job) error {
@@ -30,7 +32,13 @@ func CreateJob(job models.Job) error {
 		return nil
 	}
 
-	fmt.Println("Publishing immediate job:", job.ID)
+	logger.Log.Info( 
+		"publishing immediate job", 
+		
+		zap.String("job_id", job.ID), 
+		zap.String("queue", job.QueueName), 
+	)
+	
 	err = kafka.PublishJob(job)
 
 	if err != nil {

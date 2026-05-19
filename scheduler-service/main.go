@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/aakash811/queueflow/shared/config"
+	"github.com/aakash811/queueflow/shared/logger"
+	"go.uber.org/zap"
 
 	cronjobs "github.com/aakash811/queueflow/scheduler-service/cron"
 	"github.com/aakash811/queueflow/scheduler-service/db"
@@ -14,8 +14,12 @@ import (
 func main() {
 
 	config.LoadConfig()
+	err := logger.InitLogger()
+	if err != nil {
+		panic(err)
+	}
 
-	err := db.ConnectDatabase(
+	err = db.ConnectDatabase(
 		config.AppConfig.PostgresURL,
 	)
 
@@ -25,7 +29,13 @@ func main() {
 
 	kafka.InitProducer()
 
-	fmt.Println("scheduler initialized")
+	logger.Log.Info(
+		"scheduler initialized",
+		zap.String(
+			"port",
+			config.AppConfig.Port,
+		),
+	)
 
 	go cronjobs.StartCronJobs()
 	scheduler.StartScheduler()
