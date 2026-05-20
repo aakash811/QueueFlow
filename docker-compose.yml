@@ -98,6 +98,13 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+    environment:
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards/json
+      - ./monitoring/provisioning/dashboards:/etc/grafana/provisioning/dashboards
 
   nginx:
     image: nginx:latest
@@ -111,3 +118,4 @@ services:
 
 volumes:
   postgres_data:
+  grafana-storage:

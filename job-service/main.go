@@ -8,6 +8,7 @@ import (
 	"github.com/aakash811/queueflow/job-service/routes"
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/shared/logger"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -38,6 +39,7 @@ func main() {
 	go grpc.CheckWorkerHealth()
 	
 	router := gin.Default()
+	router.Use(cors.Default())
 	routes.RegisterRoutes(router)
 	logger.Log.Info(
 		"job-service started",
