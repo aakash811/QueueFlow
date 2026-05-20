@@ -5,6 +5,7 @@ import (
 
 	"github.com/aakash811/queueflow/scheduler-service/kafka"
 	"github.com/aakash811/queueflow/scheduler-service/models"
+	"github.com/aakash811/queueflow/scheduler-service/repository"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 )
@@ -27,7 +28,7 @@ func StartCronJobs() {
 			}
 
 			fmt.Println("running recurring cron job:", job.ID)
-
+			repository.CreateJob(job)
 			err := kafka.PublishJob(job)
 
 			if err != nil {

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package worker;
+
+option go_package = "./proto";
+
+service WorkerService {
+    rpc UpdateJobStatus (JobStatusRequest)
+        returns (JobStatusResponse);
+    
+    rpc HealthCheck (HealthRequest)
+        returns (HealthResponse);
+}
+
+message JobStatusRequest {
+    string job_id = 1;
+    string status = 2;
+}
+
+message JobStatusResponse {
+    string message = 1;
+}
+
+message HealthRequest{}
+
+message HealthResponse{
+    string status = 1;
+}

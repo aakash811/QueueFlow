@@ -13,6 +13,7 @@ import (
 	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/consumer"
 	"github.com/aakash811/queueflow/worker-service/db"
+	"github.com/aakash811/queueflow/worker-service/grpc"
 	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -20,6 +21,7 @@ import (
 func main() {
 	config.LoadConfig()
 	err := logger.InitLogger()
+	go grpc.StartGRPCServer()
 	metrics.InitMetrics()
 
 	http.Handle(

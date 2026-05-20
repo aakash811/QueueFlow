@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/aakash811/queueflow/job-service/db"
+	"github.com/aakash811/queueflow/job-service/grpc"
 	"github.com/aakash811/queueflow/job-service/kafka"
 	"github.com/aakash811/queueflow/job-service/redis"
 	"github.com/aakash811/queueflow/job-service/routes"
@@ -14,7 +15,7 @@ import (
 func main() {
 	config.LoadConfig()
 	err := logger.InitLogger()
-
+	
 	if err != nil {
 		panic(err)
 	}
@@ -32,8 +33,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	
 	kafka.InitProducer() 
+	go grpc.CheckWorkerHealth()
+	
 	router := gin.Default()
 	routes.RegisterRoutes(router)
 	logger.Log.Info(

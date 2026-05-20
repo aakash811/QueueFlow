@@ -99,5 +99,15 @@ services:
     depends_on:
       - prometheus
 
+  nginx:
+    image: nginx:latest
+    container_name: queueflow-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - job-service
+
 volumes:
   postgres_data:

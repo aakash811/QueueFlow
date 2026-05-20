@@ -16,6 +16,7 @@ import (
 	"github.com/aakash811/queueflow/worker-service/models"
 	"github.com/aakash811/queueflow/worker-service/processor"
 	"github.com/aakash811/queueflow/worker-service/repository"
+
 	kafkago "github.com/segmentio/kafka-go"
 	"github.com/sony/gobreaker"
 	"go.uber.org/zap"
@@ -46,6 +47,22 @@ func worker(
 				zap.String("job_id", job.ID),
 			)
 
+			// update status to processing
+			err := repository.UpdateJobStatus(
+				job.ID,
+				"processing",
+			)
+
+			if err != nil {
+
+				logger.Log.Error(
+					"failed to update processing status",
+
+					zap.String("job_id", job.ID),
+					zap.Error(err),
+				)
+			}
+
 			logger.Log.Info(
 				"job timeout configured",
 
@@ -64,7 +81,7 @@ func worker(
 
 			defer cancel()
 
-			_, err := circuitbreaker.JobBreaker.Execute(
+			_, err = circuitbreaker.JobBreaker.Execute(
 				func() (interface{}, error) {
 
 					return nil,
@@ -104,6 +121,22 @@ func worker(
 			}
 
 			if err != nil {
+
+				// update status to failed
+				statusErr := repository.UpdateJobStatus(
+					job.ID,
+					"failed",
+				)
+
+				if statusErr != nil {
+
+					logger.Log.Error(
+						"failed to update failed status",
+
+						zap.String("job_id", job.ID),
+						zap.Error(statusErr),
+					)
+				}
 
 				logger.Log.Error(
 					"job processing failed",
@@ -184,6 +217,22 @@ func worker(
 				return
 			}
 
+			// update status to completed
+			err = repository.UpdateJobStatus(
+				job.ID,
+				"completed",
+			)
+
+			if err != nil {
+
+				logger.Log.Error(
+					"failed to update completed status",
+
+					zap.String("job_id", job.ID),
+					zap.Error(err),
+				)
+			}
+
 			logger.Log.Info(
 				"job completed",
 
@@ -197,58 +246,96 @@ func worker(
 	}
 }
 
-
-
 func StartConsumer(ctx context.Context) {
-	reader := kafkago.NewReader(kafkago.ReaderConfig{
-		Brokers: []string{"kafka:9092"},
-		Topic:   "jobs_pending",
-		GroupID: "queueflow-workers",
-	})
+
+	reader := kafkago.NewReader(
+		kafkago.ReaderConfig{
+			Brokers: []string{"kafka:9092"},
+			Topic:   "jobs_pending",
+			GroupID: "queueflow-workers",
+		},
+	)
 
 	fmt.Println("worker consumer started")
-	
+
 	jobChannel := make(chan models.Job, 100)
+
 	var wg sync.WaitGroup
 
 	workerCount := config.AppConfig.WorkerConcurrency
 
 	for i := 1; i <= workerCount; i++ {
-		go worker(i, jobChannel, &wg)
+
+		go worker(
+			i,
+			jobChannel,
+			&wg,
+		)
 	}
 
 	go StartRetryConsumer(jobChannel)
 
 	for {
+
 		select {
+
 		case <-ctx.Done():
-			fmt.Println("shutdown signal received, shutting down consumer...")
+
+			fmt.Println(
+				"shutdown signal received, shutting down consumer...",
+			)
+
 			close(jobChannel)
 
 			wg.Wait()
+
 			err := reader.Close()
 
 			if err != nil {
-				fmt.Println("Reader close error:", err)
+
+				fmt.Println(
+					"Reader close error:",
+					err,
+				)
 			}
 
-			fmt.Println("worker shutdown complete")
+			fmt.Println(
+				"worker shutdown complete",
+			)
 
 			return
+
 		default:
 		}
-		message, err := reader.ReadMessage(context.Background())
+
+		message, err := reader.ReadMessage(
+			context.Background(),
+		)
 
 		if err != nil {
-			fmt.Println("Consumer error:", err)
+
+			fmt.Println(
+				"Consumer error:",
+				err,
+			)
+
 			continue
 		}
 
 		var job models.Job
-		err = json.Unmarshal(message.Value, &job)
+
+		err = json.Unmarshal(
+			message.Value,
+			&job,
+		)
 
 		if err != nil {
-			fmt.Println("json parse error:", err)
+
+			fmt.Println(
+				"json parse error:",
+				err,
+			)
+
 			continue
 		}
 
