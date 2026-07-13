@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aakash811/queueflow/job-service/kafka"
@@ -8,11 +9,12 @@ import (
 	"github.com/aakash811/queueflow/job-service/repository"
 	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/aakash811/queueflow/shared/metrics"
+	"github.com/aakash811/queueflow/shared/tracing"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-func CreateJob(job models.Job) error {
+func CreateJob(ctx context.Context, job models.Job) error {
 	job.ID = uuid.New().String()
 	job.Status = "pending"
 	job.RetryCount = 0
@@ -23,6 +25,8 @@ func CreateJob(job models.Job) error {
 	if err != nil {
 		return err
 	}
+
+	metrics.JobsCreated.Inc()
 
 	if job.ExecuteAt != nil {
 		fmt.Println(
@@ -40,7 +44,10 @@ func CreateJob(job models.Job) error {
 		zap.String("queue", job.QueueName), 
 	)
 	
-	err = kafka.PublishJob(job)
+	ctx, span := tracing.Tracer.Start(ctx, "publish-job")
+	defer span.End()
+
+	err = kafka.PublishJob(ctx, job)
 	
 	if err != nil {
 		return err

@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/aakash811/queueflow/scheduler-service/models"
-
+	"github.com/aakash811/queueflow/shared/tracing"
 	kafkago "github.com/segmentio/kafka-go"
 )
 
@@ -23,7 +24,7 @@ func InitProducer() {
 	fmt.Println("scheduler kafka producer initialized")
 }
 
-func PublishJob(job models.Job) error {
+func PublishJob(ctx context.Context, job models.Job) error {
 
 	payload, err := json.Marshal(job)
 
@@ -31,12 +32,28 @@ func PublishJob(job models.Job) error {
 		return err
 	}
 
+	headers := map[string]string{}
+	tracing.InjectTraceContext(ctx, headers)
+	headers["publish-time"] = time.Now().UTC().Format(time.RFC3339Nano)
+
 	err = Producer.WriteMessages(
-		context.Background(),
+		ctx,
 		kafkago.Message{
-			Value: payload,
+			Value:   payload,
+			Headers: convertHeaders(headers),
 		},
 	)
 
 	return err
+}
+
+func convertHeaders(headers map[string]string) []kafkago.Header {
+	var kafkaHeaders []kafkago.Header
+	for k, v := range headers {
+		kafkaHeaders = append(kafkaHeaders, kafkago.Header{
+			Key:   k,
+			Value: []byte(v),
+		})
+	}
+	return kafkaHeaders
 }

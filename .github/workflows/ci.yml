@@ -10,7 +10,7 @@ on:
       - main
 
 jobs:
-  build-and-test:
+  lint-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,6 +24,20 @@ jobs:
 
       - name: Install Dependencies
         run: go mod tidy
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: "latest"
+
+      - name: Run Tests
+        run: go test ./...
+
+      - name: Vulnerability Scan (Go)
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 
       - name: Build Job Service
         run: |
@@ -42,3 +56,10 @@ jobs:
 
       - name: Docker Compose Build
         run: docker compose build
+
+      - name: Vulnerability Scan (Container Images)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "queueflow-job-service:latest,queueflow-worker-service:latest,queueflow-scheduler-service:latest"
+          format: "sarif"
+          output: "trivy-results.sarif"

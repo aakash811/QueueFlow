@@ -1,40 +1,59 @@
 import http from "k6/http";
-
 import { sleep } from "k6";
 
 export const options = {
-  vus: 20,
-  duration: "30s",
+  scenarios: {
+    load_test: {
+      executor: "per-vu-iterations",
+      vus: 100,
+      iterations: 200,
+      maxDuration: "2m",
+    },
+  },
 };
 
-export default function () {
-  const loginPayload = JSON.stringify({
-    username: "admin",
-    password: "password",
-  });
+const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 
-  const loginRes = http.post("http://localhost:8080/login", loginPayload, {
-    headers: {
-      "Content-Type": "application/json",
+export function setup() {
+  const loginRes = http.post(
+    BASE_URL + "/login",
+    JSON.stringify({ username: "admin", password: "admin123" }),
+    {
+      headers: { "Content-Type": "application/json" },
     },
-  });
+  );
+
+  if (loginRes.status !== 200) {
+    console.error("Login failed:", loginRes.body);
+    return { token: "" };
+  }
 
   const token = loginRes.json("token");
+  return { token };
+}
 
+export default function (data) {
   const payload = JSON.stringify({
     queue_name: "email",
     payload: {
-      fail: true,
+      message: "benchmark",
     },
   });
 
+  const idemKey = String(__VU) + "-" + String(__ITER) + "-" + String(Date.now());
   const headers = {
-    Authorization: `Bearer ${token}`,
-    "Idempotency-Key": `${__VU}-${__ITER}`,
+    Authorization: "Bearer " + data.token,
+    "Idempotency-Key": idemKey,
     "Content-Type": "application/json",
   };
 
-  http.post("http://localhost:8080/jobs", payload, { headers });
+  const res = http.post(BASE_URL + "/jobs", payload, { headers });
 
-  sleep(1);
+  if (res.status !== 201) {
+    console.error("Job creation failed:", res.body);
+  }
+}
+
+export function teardown(data) {
+  console.log("Benchmark complete. Check Grafana for metrics.");
 }

@@ -1,11 +1,14 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/aakash811/queueflow/scheduler-service/kafka"
 	"github.com/aakash811/queueflow/scheduler-service/repository"
+	"github.com/aakash811/queueflow/shared/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func StartScheduler() {
@@ -20,6 +23,9 @@ func StartScheduler() {
 
 		<-ticker.C
 
+		ctx, span := tracing.Tracer.Start(context.Background(), "scheduler-poll")
+		span.SetAttributes(attribute.String("correlation.id", tracing.GetCorrelationID(ctx)))
+
 		jobs, err := repository.GetReadyJobs()
 
 		if err != nil {
@@ -29,17 +35,21 @@ func StartScheduler() {
 				err,
 			)
 
+			span.End()
 			continue
 		}
 
 		for _, job := range jobs {
+
+			jobCtx, jobSpan := tracing.Tracer.Start(ctx, "dispatch-job")
+			jobSpan.SetAttributes(attribute.String("job.id", job.ID))
 
 			fmt.Println(
 				"dispatching scheduled job:",
 				job.ID,
 			)
 
-			err = kafka.PublishJob(job)
+			err = kafka.PublishJob(jobCtx, job)
 
 			if err != nil {
 
@@ -48,6 +58,8 @@ func StartScheduler() {
 					err,
 				)
 
+				jobSpan.RecordError(err)
+				jobSpan.End()
 				continue
 			}
 
@@ -62,6 +74,10 @@ func StartScheduler() {
 					err,
 				)
 			}
+
+			jobSpan.End()
 		}
+
+		span.End()
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/aakash811/queueflow/shared/tracing"
 	"github.com/aakash811/queueflow/worker-service/models"
 	kafkago "github.com/segmentio/kafka-go"
 )
@@ -25,34 +26,53 @@ func InitProducer() {
 	}
 }
 
-func PublishRetryJobs(job models.Job) error {
+func PublishRetryJobs(ctx context.Context, job models.Job) error {
 	payload, err := json.Marshal(job)
 
 	if err != nil {
 		return err
 	}
 
+	headers := map[string]string{}
+	tracing.InjectTraceContext(ctx, headers)
+
 	return RetryWriter.WriteMessages(
-		context.Background(),
+		ctx,
 		kafkago.Message{
-			Key:   []byte(job.ID),
-			Value: payload,
+			Key:     []byte(job.QueueName),
+			Value:   payload,
+			Headers: convertHeaders(headers),
 		},
 	)
 }
 
-func PublishDeadLetterJob (job models.Job) error {
+func PublishDeadLetterJob(ctx context.Context, job models.Job) error {
 	payload, err := json.Marshal(job)
 
 	if err != nil {
 		return err
 	}
 
+	headers := map[string]string{}
+	tracing.InjectTraceContext(ctx, headers)
+
 	return DeadLetterWriter.WriteMessages(
-		context.Background(),
+		ctx,
 		kafkago.Message{
-			Key:   []byte(job.ID),
-			Value: payload,
+			Key:     []byte(job.QueueName),
+			Value:   payload,
+			Headers: convertHeaders(headers),
 		},
 	)
+}
+
+func convertHeaders(headers map[string]string) []kafkago.Header {
+	var kafkaHeaders []kafkago.Header
+	for k, v := range headers {
+		kafkaHeaders = append(kafkaHeaders, kafkago.Header{
+			Key:   k,
+			Value: []byte(v),
+		})
+	}
+	return kafkaHeaders
 }

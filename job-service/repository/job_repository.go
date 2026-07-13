@@ -35,9 +35,13 @@ func CreateJob(job models.Job) error {
 		status,
 		retry_count,
 		max_retries,
-		scheduled_at
+		scheduled_at,
+		idempotency_key,
+		tenant_id,
+		partition_key,
+		priority
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	_, err := db.DB.Exec(
@@ -50,6 +54,10 @@ func CreateJob(job models.Job) error {
 		job.RetryCount,
 		job.MaxRetries,
 		job.ExecuteAt,
+		job.IdempotencyKey,
+		job.TenantID,
+		job.PartitionKey,
+		job.Priority,
 	)
 
 	if err != nil {
@@ -73,7 +81,11 @@ func GetRecentJobs() ([]models.Job, error) {
 		updated_at,
 		execute_at,
 		processed_at,
-		failed_at
+		failed_at,
+		idempotency_key,
+		tenant_id,
+		partition_key,
+		priority
 	FROM jobs
 	ORDER BY created_at DESC
 	LIMIT 20
@@ -108,6 +120,10 @@ func GetRecentJobs() ([]models.Job, error) {
 			&job.ExecuteAt,
 			&job.ProcessedAt,
 			&job.FailedAt,
+			&job.IdempotencyKey,
+			&job.TenantID,
+			&job.PartitionKey,
+			&job.Priority,
 		)
 
 		if err != nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/aakash811/queueflow/shared/metrics"
+	"github.com/aakash811/queueflow/shared/tracing"
 	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/kafka"
 	"github.com/aakash811/queueflow/worker-service/models"
@@ -19,26 +20,37 @@ import (
 
 	kafkago "github.com/segmentio/kafka-go"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
+type jobWithContext struct {
+	Job         models.Job
+	Ctx         context.Context
+	PublishTime time.Time
+}
+
 func worker(
 	workerID int,
-	jobs <-chan models.Job,
+	jobs <-chan jobWithContext,
 	wg *sync.WaitGroup,
 ) {
 
 	fmt.Println("worker started:", workerID)
 
-	for job := range jobs {
-
-		wg.Add(1)
+	for jwc := range jobs {
 
 		start := time.Now()
+
+		pickupLatency := start.Sub(jwc.PublishTime).Seconds()
+		metrics.JobPickupLatency.Observe(pickupLatency)
 
 		func() {
 
 			defer wg.Done()
+
+			job := jwc.Job
+			ctx := jwc.Ctx
 
 			logger.Log.Info(
 				"worker processing job",
@@ -47,7 +59,10 @@ func worker(
 				zap.String("job_id", job.ID),
 			)
 
-			// update status to processing
+			ctx, span := tracing.Tracer.Start(ctx, "process-job")
+			span.SetAttributes(attribute.String("job.id", job.ID))
+			span.SetAttributes(attribute.String("job.queue", job.QueueName))
+
 			err := repository.UpdateJobStatus(
 				job.ID,
 				"processing",
@@ -73,7 +88,7 @@ func worker(
 			)
 
 			timeoutCtx, cancel := context.WithTimeout(
-				context.Background(),
+				ctx,
 				time.Duration(
 					config.AppConfig.JobTimeoutSeconds,
 				)*time.Second,
@@ -105,7 +120,8 @@ func worker(
 				)
 
 				metrics.WorkerFailures.Inc()
-
+				span.RecordError(err)
+				span.End()
 				return
 			}
 
@@ -118,11 +134,11 @@ func worker(
 				)
 
 				metrics.WorkerFailures.Inc()
+				span.RecordError(err)
 			}
 
 			if err != nil {
 
-				// update status to failed
 				statusErr := repository.UpdateJobStatus(
 					job.ID,
 					"failed",
@@ -169,7 +185,7 @@ func worker(
 
 					time.Sleep(backoff)
 
-					err = kafka.PublishRetryJobs(job)
+					err = kafka.PublishRetryJobs(ctx, job)
 
 					if err != nil {
 
@@ -181,6 +197,7 @@ func worker(
 						)
 					}
 
+					span.End()
 					return
 				}
 
@@ -190,7 +207,7 @@ func worker(
 					zap.String("job_id", job.ID),
 				)
 
-				err = kafka.PublishDeadLetterJob(job)
+				err = kafka.PublishDeadLetterJob(ctx, job)
 
 				if err != nil {
 
@@ -214,10 +231,11 @@ func worker(
 					)
 				}
 
+				span.RecordError(err)
+				span.End()
 				return
 			}
 
-			// update status to completed
 			err = repository.UpdateJobStatus(
 				job.ID,
 				"completed",
@@ -242,6 +260,8 @@ func worker(
 			metrics.JobThroughput.Inc()
 
 			metrics.QueueDepth.Dec()
+
+			span.End()
 		}()
 	}
 }
@@ -258,11 +278,25 @@ func StartConsumer(ctx context.Context) {
 
 	fmt.Println("worker consumer started")
 
-	jobChannel := make(chan models.Job, 100)
+	jobChannel := make(chan jobWithContext, 100)
 
 	var wg sync.WaitGroup
 
 	workerCount := config.AppConfig.WorkerConcurrency
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Println("consumer lag goroutine panic:", r)
+			}
+		}()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			stats := reader.Stats()
+			metrics.KafkaConsumerLag.Set(float64(stats.Lag))
+		}
+	}()
 
 	for i := 1; i <= workerCount; i++ {
 
@@ -339,6 +373,25 @@ func StartConsumer(ctx context.Context) {
 			continue
 		}
 
-		jobChannel <- job
+		headers := make(map[string]string)
+		for _, h := range message.Headers {
+			headers[h.Key] = string(h.Value)
+		}
+
+		traceCtx := tracing.ExtractTraceContext(
+			context.Background(),
+			headers,
+		)
+
+		publishTime := time.Now()
+		if pt, ok := headers["publish-time"]; ok {
+			if t, err := time.Parse(time.RFC3339Nano, pt); err == nil {
+				publishTime = t
+			}
+		}
+
+		wg.Add(1)
+
+		jobChannel <- jobWithContext{Job: job, Ctx: traceCtx, PublishTime: publishTime}
 	}
 }

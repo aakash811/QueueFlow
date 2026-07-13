@@ -10,6 +10,7 @@ import (
 	"github.com/aakash811/queueflow/shared/config"
 	"github.com/aakash811/queueflow/shared/logger"
 	"github.com/aakash811/queueflow/shared/metrics"
+	"github.com/aakash811/queueflow/shared/tracing"
 	"github.com/aakash811/queueflow/worker-service/circuitbreaker"
 	"github.com/aakash811/queueflow/worker-service/consumer"
 	"github.com/aakash811/queueflow/worker-service/db"
@@ -19,8 +20,16 @@ import (
 )
 
 func main() {
-	config.LoadConfig()
 	err := logger.InitLogger()
+	if err != nil {
+		panic(err)
+	}
+
+	config.LoadConfig()
+
+	shutdown := tracing.InitTracer("worker-service")
+	defer shutdown(context.Background())
+
 	go grpc.StartGRPCServer()
 	metrics.InitMetrics()
 

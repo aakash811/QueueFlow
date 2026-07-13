@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: job-service
+  namespace: queueflow
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: job-service
+  template:
+    metadata:
+      labels:
+        app: job-service
+    spec:
+      containers:
+      - name: job-service
+        image: queueflow-job-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: KAFKA_BROKERS
+          value: "queueflow-kafka:9092"
+        - name: REDIS_URL
+          value: "queueflow-redis:6379"
+        - name: WORKER_CONCURRENCY
+          value: "4"
+        - name: JOB_TIMEOUT_SECONDS
+          value: "10"
+        - name: MAX_PENDING_JOBS
+          value: "10"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+          requests:
+            cpu: "250m"
+            memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-service
+  namespace: queueflow
+spec:
+  type: ClusterIP
+  selector:
+    app: job-service
+  ports:
+  - port: 8080
+    targetPort: 8080

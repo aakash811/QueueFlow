@@ -31,11 +31,33 @@ var (
 		},
 	)
 
+	JobsCreated = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "jobs_created_total",
+			Help: "Total jobs created",
+		},
+	)
+
 	JobLatency = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: "job_latency_seconds",
 			Help: "Job processing latency",
 			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	JobPickupLatency = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "job_pickup_latency_seconds",
+			Help: "Time from Kafka publish to worker start-of-processing",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	KafkaConsumerLag = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "kafka_consumer_lag",
+			Help: "Current Kafka consumer lag for jobs_pending topic",
 		},
 	)
 )
@@ -46,6 +68,9 @@ func InitMetrics() {
 		JobThroughput,
 		WorkerFailures,
 		RetryCount,
+		JobsCreated,
 		JobLatency,
+		JobPickupLatency,
+		KafkaConsumerLag,
 	)
 }

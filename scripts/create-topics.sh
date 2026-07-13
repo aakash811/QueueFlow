@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PARTITIONS="${KAFKA_DEFAULT_PARTITIONS:-8}"
+
 topics=(
   jobs_pending
   jobs_processing
@@ -12,7 +17,7 @@ do
   kafka-topics --create \
     --if-not-exists \
     --topic "$topic" \
-    --bootstrap-server localhost:9092 \
-    --partitions 1 \
+    --bootstrap-server "${KAFKA_BROKERS:-localhost:9092}" \
+    --partitions "$PARTITIONS" \
     --replication-factor 1
 done

@@ -47,6 +47,7 @@ func IdempotencyMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		ctx.Set("idempotency_key", key)
 		ctx.Next()
 	}
 }

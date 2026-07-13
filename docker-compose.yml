@@ -11,6 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7
@@ -41,6 +46,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: ${KAFKA_DEFAULT_PARTITIONS:-8}
 
   job-service:
     build:
@@ -49,13 +55,18 @@ services:
     container_name: queueflow-job-service
     restart: always
     depends_on:
-      - postgres
-      - kafka
-      - redis
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
     ports:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
 
   worker-service:
     build:
@@ -64,12 +75,16 @@ services:
     container_name: queueflow-worker-service
     restart: always
     depends_on:
-      - postgres
-      - kafka
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     ports:
       - "2112:2112"
     env_file:
       - .env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
 
   scheduler-service:
     build:
@@ -77,10 +92,16 @@ services:
       dockerfile: scheduler-service/Dockerfile
     container_name: queueflow-scheduler-service
     depends_on:
-      - postgres
-      - kafka
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    ports:
+      - "2113:2113"
     env_file:
       - .env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
 
   prometheus:
     image: prom/prometheus
@@ -105,6 +126,7 @@ services:
       - grafana-storage:/var/lib/grafana
       - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards/json
       - ./monitoring/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/provisioning/datasources:/etc/grafana/provisioning/datasources
 
   nginx:
     image: nginx:latest
@@ -115,6 +137,29 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
       - job-service
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: queueflow-jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
+  migrate:
+    image: migrate/migrate:v4.18.1
+    container_name: queueflow-migrate
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/migrations:/migrations
+    command: [
+      "-path", "/migrations",
+      "-database", "postgres://postgres:postgres@postgres:5432/queueflow?sslmode=disable",
+      "up",
+    ]
 
 volumes:
   postgres_data:

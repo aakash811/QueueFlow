@@ -1,9 +1,35 @@
-.env
+# Go binaries
 bin/
-tmp/
-vendor/
+dist/
+
+# env
+.env
+
+# logs
 *.log
-coverage.out
+
+# docker
+docker-data/
+
+# grafana temp
+grafana-storage/
+
+# vscode
+.vscode
+
+# node
+node_modules
+
+# next
+.next
+
+# OS
 .DS_Store
-.idea/
-.vscode/
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.lock.info
+*.tfplan
+terraform.tfvars

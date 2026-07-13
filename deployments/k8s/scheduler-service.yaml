@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler-service
+  namespace: queueflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scheduler-service
+  template:
+    metadata:
+      labels:
+        app: scheduler-service
+    spec:
+      containers:
+      - name: scheduler-service
+        image: queueflow-scheduler-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: KAFKA_BROKERS
+          value: "queueflow-kafka:9092"
+        resources:
+          limits:
+            cpu: "250m"
+            memory: "128Mi"
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scheduler-service
+  namespace: queueflow
+spec:
+  type: ClusterIP
+  selector:
+    app: scheduler-service
+  ports:
+  - port: 8080
+    targetPort: 8080

@@ -2,8 +2,17 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
-  - job_name: "worker-service"
+  - job_name: "job-service"
+    static_configs:
+      - targets:
+          - "job-service:8080"
 
+  - job_name: "worker-service"
     static_configs:
       - targets:
           - "worker-service:2112"
+
+  - job_name: "scheduler-service"
+    static_configs:
+      - targets:
+          - "scheduler-service:2113"

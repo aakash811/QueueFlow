@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-service
+  namespace: queueflow
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: worker-service
+  template:
+    metadata:
+      labels:
+        app: worker-service
+    spec:
+      containers:
+      - name: worker-service
+        image: queueflow-worker-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 2112
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: KAFKA_BROKERS
+          value: "queueflow-kafka:9092"
+        - name: WORKER_CONCURRENCY
+          value: "4"
+        - name: JOB_TIMEOUT_SECONDS
+          value: "10"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+          requests:
+            cpu: "250m"
+            memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker-service
+  namespace: queueflow
+spec:
+  type: ClusterIP
+  selector:
+    app: worker-service
+  ports:
+  - port: 2112
+    targetPort: 2112
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker-service-hpa
+  namespace: queueflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

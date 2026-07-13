@@ -1,6 +1,7 @@
 package cronjobs
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aakash811/queueflow/scheduler-service/kafka"
@@ -27,9 +28,9 @@ func StartCronJobs() {
 				},
 			}
 
-			fmt.Println("running recurring cron job:", job.ID)
-			repository.CreateJob(job)
-			err := kafka.PublishJob(job)
+		fmt.Println("running recurring cron job:", job.ID)
+		repository.CreateJob(job)
+		err := kafka.PublishJob(context.Background(), job)
 
 			if err != nil {
 				fmt.Println(
